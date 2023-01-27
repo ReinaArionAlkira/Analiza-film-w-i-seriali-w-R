@@ -4,7 +4,6 @@ install.packages("treemap")
 install.packages("tidyverse")
 install.packages("ggrepel")
 
-library(lubridate)
 library(tidyverse) # metapackage with lots of helpful functions
 library(ggrepel)
 library(treemap)
@@ -14,8 +13,9 @@ getwd()
 # ustawić ścieżkę z folderu
 setwd("C:/Users/Scuro Guardiano/Desktop/hentai/JezykiSkryptoweAD/Project")
 df = data.frame(read.csv("netflix_titles.csv", header=TRUE, sep=",", dec="."), stringsAsFactors = FALSE)
-# Na wstępie od razu widzimy że id nam nie będzie potrzebne, więc można się go pozbyć
-df = df[,-1]
+
+summary(df)
+glimpse(df)
 
 # Sprawdzenie w których kolumnach znajdują się puste komórki
 dfx = which(df == "", arr.ind = T)
@@ -44,8 +44,8 @@ ggplot(dfBlanks, aes(x = reorder(NumerKolumny, IloscPowtorzen), y = IloscPowtorz
 # Po dokładniejszym zastanowieniu: w naszej analizie nie wykorzystamy w żaden sposób kolumn cast oraz director
 # Więc zamiast uzupełniać dane w tych kolumnach, można się ich po prostu pozbyć
 
-df = df[, -3]
-df = df[, -3]
+df = df[, -4]
+df = df[, -4]
 df$duration[df$duration == ""] = "Brak danych"
 df$country[df$country == ""] = "Brak danych"
 df$date_added[df$date_added == ""] = "Brak danych"
@@ -70,9 +70,7 @@ df$rating[df$rating == ""] = names(sort(-table(df$rating)))[1]
 
 # jeszcze w przypadku country znaleziono złe wartości, z przecinkiem na początku
 # usuwamy je by nie liczyły się jako unikalne wartości
-names(table(df$country))[1]
-names(table(df$country))[2]
-df$country <- sub(', ', "", df$country)
+
 
 dfx = which(df == "", arr.ind = T)
 dfx = table(dfx[, 2])
@@ -92,12 +90,12 @@ ggplot(uniques, aes(y = reorder(Kolumny, Unikalne), x = Unikalne, fill = Kolumny
   theme(plot.title = element_text(size=20, face="bold"),) +
   theme(legend.position = "none") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-  scale_fill_manual(values = c(rep("#3366CC",2), "#0000AA", rep("#3366CC",4), "#0000AA", "#3366CC")) + 
+  scale_fill_manual(values = c(rep("#3366CC",2), "#0000AA", rep("#3366CC",4), "#0000AA","#0000AA", "#3366CC")) + 
   labs(x = "Kolumny", y = "Unikalne wartości") + 
   geom_text_repel(aes(label = stat(x), group = factor(Unikalne)), position = position_nudge_repel(x = 4))
 
 # Jak widać kolumny:
-# title, oraz description (zaznaczone innym kolorem)
+# title, id oraz description (zaznaczone innym kolorem)
 # posiadają taką samą lub prawie taką samą liczbę unikalnych wartości, co rekordów
 # dlatego tymi wartościami nie będziemy się zajmować
 
@@ -177,36 +175,50 @@ treemap(moviesRating,
 
 # przygotowanie danych do wykresu z dodawania treści na przestrzeni lat
 
-#chyba zbędne
-#plotYear <- count(df, date_added)
-#plotTvYear <- count(tvShows, date_added)
-#plotMoviesYear <- count(movies, date_added)
 
 splitedDate <- sub('.*, ', '', df$date_added)
-plotYear <- data.frame(splitedDate)
-plotYear <- count(plotYear, splitedDate)
+plotYear <- data.frame(type = "All", splitedDate)
+plotYear <- count(plotYear, splitedDate, type)
 
 plotYear <- slice(plotYear, 1:(n() - 1)) 
 
-splitedDateTv <- sub('.*, ', '', tvShows$date_added)
-plotTvYear <- data.frame(splitedDateTv)
-plotTvYear <- count(plotTvYear, splitedDateTv)
+splitedDate <- sub('.*, ', '', tvShows$date_added)
+plotTvYear <- data.frame(type = "TV Show", splitedDate)
+plotTvYear <- count(plotTvYear, splitedDate, type)
+
+plotMissing <- data.frame(type = "TV Show", splitedDate = c("2009", "2010", "2011", "2012"), n = 0)
+plotTvYear <- rbind(plotTvYear[1,], plotMissing, plotTvYear[-(1),])
+
 
 plotTvYear <- slice(plotTvYear, 1:(n() - 1))
 
-splitedDateMovies <- sub('.*, ', '', movies$date_added)
-plotMoviesYear <- data.frame(splitedDateMovies)
-plotMoviesYear <- count(plotMoviesYear, splitedDateMovies)
+splitedDate <- sub('.*, ', '', movies$date_added)
+plotMoviesYear <- data.frame(type = "Movie", splitedDate)
+plotMoviesYear <- count(plotMoviesYear, splitedDate, type)
+plotYearAll <- rbind(plotYear, plotMoviesYear, plotTvYear)
 
-plot(plotYear$splitedDate, plotYear$n,  type = "b", col = 2 , lwd = 3, pch = 1, xlab = "Year", ylab = "Amount")
-lines(plotMoviesYear$splitedDate, plotMoviesYear$n, type = "b", col = 4 , lwd = 3, pch = 1)
-lines(plotTvYear$splitedDate, plotTvYear$n, type = "b", col = 3 , lwd = 3, pch = 1)
+ggplot(plotYearAll, aes(x = splitedDate, y = n, color = type, label = n))  +
+  geom_point() + 
+  geom_line(data = plotYear, aes(group = 1)) +
+  geom_line(data = plotMoviesYear, aes(group = 2)) +
+  geom_line(data = plotTvYear, aes(group = 3)) +
+  geom_text(data = plotYearAll[plotYearAll$splitedDate == c("", "2016", "2017", "2018", "2019", "2020", "2021"),], color = "black", vjust = -0.5) +
+  xlab("Rok")+ylab("Ilość") +
+  ggtitle("Dodawanie treści na przestrzeni lat") +
+  theme(legend.position = c(0.1,0.9)) +
+  scale_color_manual(values = c("red", "blue", "green"))
+  
 
-legend(x = "topleft",legend = c("All", "Movies", "Tv Shows"), lty = 1, col = c(2, 4, 3), lwd = 3)
-title("Dodawanie treści na przestrzeni lat")
-text(plotYear$splitedDate[-8:0], plotYear$n[-8:0] + 55, labels=plotYear$n[-8:0], col = 1)
-text(plotMoviesYear$splitedDate[-8:0], plotMoviesYear$n[-8:0] + 60, labels=plotMoviesYear$n[-8:0], col = 1)
-text(plotTvYear$splitedDate[-4:0], plotTvYear$n[-4:0] -60, labels=plotTvYear$n[-4:0], col = 1)
+
+#plot(plotYear$splitedDate, plotYear$n,  type = "b", col = 2 , lwd = 3, pch = 1, xlab = "Year", ylab = "Amount")
+#lines(plotMoviesYear$splitedDate, plotMoviesYear$n, type = "b", col = 4 , lwd = 3, pch = 1)
+#lines(plotTvYear$splitedDate, plotTvYear$n, type = "b", col = 3 , lwd = 3, pch = 1)
+
+#legend(x = "topleft",legend = c("All", "Movies", "Tv Shows"), lty = 1, col = c(2, 4, 3), lwd = 3)
+#title("Dodawanie treści na przestrzeni lat")
+#text(plotYear$splitedDate[-8:0], plotYear$n[-8:0] + 55, labels=plotYear$n[-8:0], col = 1)
+#text(plotMoviesYear$splitedDate[-8:0], plotMoviesYear$n[-8:0] + 60, labels=plotMoviesYear$n[-8:0], col = 1)
+#text(plotTvYear$splitedDate[-4:0], plotTvYear$n[-4:0] -60, labels=plotTvYear$n[-4:0], col = 1)
 
 # Zauważalny wzrost zawartości rozpoczął się w 2015 roku
 # Wzrost liczby filmów w serwisie Netflix jest znacznie wyższy niż w przypadku programów telewizyjnych
@@ -239,14 +251,109 @@ ggplot(data=plotMonth ,aes(x = reorder(splitedMonth, n), y = n, fill = n)) +
 
 # Jak widać najczęściej treść na Netflixie pojawiała się w Grudniu oraz Lipcu
 
+# Podziały na gatunki
+
+dfCategories <- df %>% 
+  select(c('show_id','type','listed_in')) %>% 
+  separate_rows(listed_in, sep = ',') %>%
+  rename(Category = listed_in)
+dfCategories$Category <- trimws(dfCategories$Category)
+head(dfCategories)
+
+dfUniqueCategories <- dfCategories %>% group_by(type,Category) %>%  summarise()
+
+# Korelacja gatunków w filmach
+Category1 = subset(dfUniqueCategories, type == 'Movie')$Category
+Category2 = subset(dfUniqueCategories, type == 'Movie')$Category
+dfCategoryCorrelationsMovies <- data.frame(expand_grid(type = 'Movie', Category1, Category2))
+
+# Korelacja gatunków w serialach
+Category1 = subset(dfUniqueCategories, type == 'TV Show')$Category
+Category2 = subset(dfUniqueCategories, type == 'TV Show')$Category
+dfCategoryCorrelationsTv <- data.frame(expand_grid(type = 'TV Show', Category1, Category2))
+
+# Połączenie obu data.frame'ów
+dfCategoryCorrelations <- rbind(dfCategoryCorrelationsMovies,dfCategoryCorrelationsTv)
+
+# Zliczamy wszystkie połączenia gatunków
+dfCategoryCorrelations$matchedCount <- apply(dfCategoryCorrelations, MARGIN = 1,FUN = function(x) {
+  length(intersect(subset(dfCategories, type == x['type'] & Category == x['Category1'])$show_id,
+                   subset(dfCategories, type == x['type'] & Category == x['Category2'])$show_id))})
+
+# Usuwamy korelacje gatunku samego ze sobą oraz wszystkich tych których była zerowa
+dfCategoryCorrelations <- subset(dfCategoryCorrelations, (as.character(Category1) < as.character(Category2)) & (matchedCount > 0))
+
+ggplot(subset(dfCategoryCorrelations, type == 'Movie'), aes(x = Category1, y = Category2, fill = matchedCount)) + 
+  geom_tile() + 
+  ggtitle("Korelacja Gatunków Filmów") + 
+  theme(plot.title = element_text(size=20, face="bold"),) +
+  scale_fill_distiller(palette = "Spectral") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  theme(legend.text = element_text(size = 14), legend.title = element_text(size = 16))
+
+# Najwięcej filmów posiada gatunki "International Dramas"
+# Można zauważyć, że "Wiara i duchowość" nie pokrywają się z filmami "LGBTQ".
+
+ggplot(subset(dfCategoryCorrelations, type == 'TV Show'), aes(x = Category1, y = Category2, fill = matchedCount)) + 
+  geom_tile() + 
+  ggtitle("Korelacja Gatunków Seriali") + 
+  theme(plot.title = element_text(size=20, face="bold"),) +
+  scale_fill_distiller(palette = "Spectral") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  theme(legend.text = element_text(size = 14), legend.title = element_text(size = 16))
+
+# Tutaj tak samo najwięcej połączeń gatunków w serialach to "International Dramas"
 
 
-# Przeanalizujmy teraz w których latach najczęściej powstawała zawartość dodana na Netflixa
-# Filmy
 
 
-# seriale
+# Wyznaczmy top 15 dla krajów
+
+topCountries <- df %>%  
+  separate_rows(country,sep="(, |,)") %>%
+  group_by(country) %>%  
+  summarise(count=n()) %>% 
+  arrange(desc(count))
 
 
+# Widzimy że jest sporo braków, ale mimo wszystko spróbujemy bez tych danych
+topCountries <- slice(topCountries, which(topCountries$country != "Brak danych"))
 
-# Podział gatunków
+topCountriesNames <- as.vector(topCountries$country[1:15])
+
+toPlot <- df %>%  
+  separate_rows(country, sep = ", ") %>%
+  filter(country %in% topCountriesNames) %>% 
+  mutate(country=factor(country, levels = topCountriesNames)) %>% 
+  group_by(country, type) %>% 
+  summarise(count = n()) 
+
+ggplot(toPlot, aes(x = reorder(country, count), y = count, fill = type)) +
+  scale_fill_manual(values = c("#3366CC", "#0000AA")) + 
+  geom_bar(stat = 'identity') +
+  coord_flip()
+
+# Jak widać Stany zjednoczone górują ilością.
+# W większości przypadków widać przewagę Filmów nad serialami
+# Jednak widać, że nie w każdym przypadku tak jest.
+# Które kraje mają więcej seriali niż filmów na tej platformie?
+
+ggplot(toPlot, aes(x = country, y = count, fill = type)) +
+  geom_bar(stat = 'identity', position = 'fill') +
+  scale_fill_manual(values = c("#89ABE3", "#3366CC")) + 
+  coord_flip()
+
+# Jak widać na wykresie procentowym krajami które mają na netflixie więcej seriali niż filmów to Japonia oraz Korea Południowa
+
+toCategory <- df %>% 
+  filter(type=='Movie') %>% 
+  separate_rows(listed_in,sep = ', ') %>% 
+  group_by(listed_in) %>% 
+  count()
+
+ggplot(toCategory, aes(x = reorder(listed_in, n), y = n, fill = n)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_gradient(low = "grey", high = "dodgerblue3") +
+  xlab("Kategorie") + ylab("Ilość") +
+  coord_flip()
+
